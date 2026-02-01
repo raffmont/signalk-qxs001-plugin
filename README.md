@@ -26,7 +26,7 @@ From Signal K server UI:
 Or from a local folder:
 ```bash
 cd ~/.signalk/node_modules
-git clone <repo> signalk-qxs-plugin
+git clone https://github.com/raffmont/signalk-qxs-plugin.git
 cd signalk-qxs-plugin
 npm install --production
 sudo systemctl restart signalk
