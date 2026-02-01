@@ -1,6 +1,8 @@
 'use strict';
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { EvdevKeyReader } = require('./lib/evdev-reader');
 const { getKipDisplays, getSelfPathValue, putSelfPathValue, buildBaseUrl } = require('./lib/kip-client');
 
@@ -25,6 +27,19 @@ const DEFAULT_KEYMAP = {
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
+}
+
+function findQxs001DevicePath() {
+  const byIdPath = '/dev/input/by-id';
+  try {
+    const entries = fs.readdirSync(byIdPath);
+    const matches = entries.filter((entry) => /qxs[-_\s]*001/i.test(entry) && entry.includes('event'));
+    if (!matches.length) return null;
+    const preferred = matches.find((entry) => entry.includes('event-kbd')) || matches[0];
+    return path.join(byIdPath, preferred);
+  } catch {
+    return null;
+  }
 }
 
 module.exports = function (app) {
@@ -297,6 +312,12 @@ module.exports = function (app) {
           title: 'Autodetect sniff window (seconds)',
           default: 6
         },
+        qxs001Autodetect: {
+          type: 'boolean',
+          title: 'QXS 001 autodetect',
+          description: 'Try to auto-detect a QXS 001 device from /dev/input/by-id before sniffing.',
+          default: true
+        },
         kipUuid: {
           type: 'string',
           title: 'KIP UUID (optional)',
@@ -324,6 +345,7 @@ module.exports = function (app) {
       const options = {
         devicePath: settings?.devicePath?.trim() || null,
         autodetectSeconds: Number(settings?.autodetectSeconds ?? 6),
+        qxs001Autodetect: Boolean(settings?.qxs001Autodetect ?? true),
         kipUuid: settings?.kipUuid?.trim() || null,
         httpToken: settings?.httpToken?.trim() || null,
         keymap: {
@@ -343,6 +365,8 @@ module.exports = function (app) {
         // Most Signal K servers expose app.registerPluginRouter()
         if (typeof app.registerPluginRouter === 'function') {
           app.registerPluginRouter(PLUGIN_ID, router);
+        } else if (typeof app.registerRouter === 'function') {
+          app.registerRouter(`/plugins/${PLUGIN_ID}`, router);
         } else if (app?.app && typeof app.app.use === 'function') {
           // fallback: raw express app
           app.app.use(`/plugins/${PLUGIN_ID}`, router);
@@ -381,15 +405,25 @@ module.exports = function (app) {
         const reader = new EvdevKeyReader({ devicePath: options.devicePath });
 
         if (!options.devicePath) {
-          setStatus('Autodetecting QXS input device… press some buttons');
-          const picked = await reader.autodetectDevice({ seconds: options.autodetectSeconds, minKeys: 1 });
-          if (!picked) {
-            setStatus('No key activity detected. Set devicePath explicitly.');
-            setError(new Error('Autodetect failed: no EV_KEY activity detected'));
-            return;
+          if (options.qxs001Autodetect) {
+            const detectedPath = findQxs001DevicePath();
+            if (detectedPath) {
+              setStatus(`Detected QXS 001 at ${detectedPath}`);
+              options.devicePath = detectedPath;
+              reader.devicePath = detectedPath;
+            }
           }
-          options.devicePath = picked;
-          reader.devicePath = picked;
+          if (!options.devicePath) {
+            setStatus('Autodetecting QXS input device… press some buttons');
+            const picked = await reader.autodetectDevice({ seconds: options.autodetectSeconds, minKeys: 1 });
+            if (!picked) {
+              setStatus('No key activity detected. Set devicePath explicitly.');
+              setError(new Error('Autodetect failed: no EV_KEY activity detected'));
+              return;
+            }
+            options.devicePath = picked;
+            reader.devicePath = picked;
+          }
         }
 
         state.devicePath = options.devicePath;
