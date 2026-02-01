@@ -8,18 +8,82 @@
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 16px; }
     .row { display: flex; gap: 12px; flex-wrap: wrap; }
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; min-width: 280px; }
+    .stack { display: grid; gap: 10px; }
+    .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .form-field { display: flex; flex-direction: column; gap: 6px; }
     .badge { padding: 2px 8px; border-radius: 999px; background: #eee; display: inline-block; }
     button { padding: 6px 10px; border-radius: 10px; border: 1px solid #ccc; background: white; cursor: pointer; }
     button.primary { border-color: #333; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
     small { color: #666; }
     code { background: #f5f5f5; padding: 2px 6px; border-radius: 6px; }
     .err { color: #a00; }
+    .status { padding: 8px 10px; border-radius: 10px; background: #f7f7f7; }
+    .status.warn { background: #fff7e0; }
   </style>
 </head>
 <body>
   <h2>QXS Remote → KIP Displays</h2>
-  <div id="meta"></div>
-  <div class="row" id="cards"></div>
+  <div class="stack">
+    <div id="meta"></div>
+    <div class="card">
+      <h3>Plugin Configuration</h3>
+      <form id="config-form" class="stack">
+        <div class="form-grid">
+          <label class="form-field">
+            <span>Input device path</span>
+            <input id="config-device-path" type="text" placeholder="/dev/input/event5" />
+            <small>Leave blank to autodetect at startup.</small>
+          </label>
+          <label class="form-field">
+            <span>Autodetect window (seconds)</span>
+            <input id="config-autodetect-seconds" type="number" min="1" max="60" />
+          </label>
+          <label class="form-field">
+            <span>QXS 001 by-id autodetect</span>
+            <input id="config-qxs001" type="checkbox" />
+            <small>Prefer /dev/input/by-id matches before sniffing.</small>
+          </label>
+          <label class="form-field">
+            <span>KIP UUID (optional)</span>
+            <input id="config-kip-uuid" type="text" placeholder="auto" />
+          </label>
+          <label class="form-field">
+            <span>HTTP token (optional)</span>
+            <input id="config-http-token" type="password" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="form-field">
+            <span>Keycode: Volume Up</span>
+            <input id="config-keymap-volume-up" type="number" />
+          </label>
+          <label class="form-field">
+            <span>Keycode: Volume Down</span>
+            <input id="config-keymap-volume-down" type="number" />
+          </label>
+          <label class="form-field">
+            <span>Keycode: Next</span>
+            <input id="config-keymap-next" type="number" />
+          </label>
+          <label class="form-field">
+            <span>Keycode: Prev</span>
+            <input id="config-keymap-prev" type="number" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="config-autodetect" type="button" class="primary">Run autodetect</button>
+          <button id="config-save" type="submit">Save settings</button>
+          <label class="form-field" style="min-width: 160px;">
+            <span>Restart after save</span>
+            <input id="config-restart" type="checkbox" checked />
+          </label>
+        </div>
+        <div id="config-status" class="status"></div>
+      </form>
+    </div>
+    <div class="row" id="cards"></div>
+  </div>
 
   <script src="./app.js"></script>
 </body>

@@ -29,6 +29,35 @@ function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
 
+function buildOptions(settings = {}) {
+  const keymap = settings?.keymap ?? {};
+  return {
+    devicePath: typeof settings.devicePath === 'string' && settings.devicePath.trim() ? settings.devicePath.trim() : null,
+    autodetectSeconds: Math.max(1, Number(settings.autodetectSeconds ?? 6)),
+    qxs001Autodetect: settings.qxs001Autodetect !== undefined ? Boolean(settings.qxs001Autodetect) : true,
+    kipUuid: typeof settings.kipUuid === 'string' && settings.kipUuid.trim() ? settings.kipUuid.trim() : null,
+    httpToken: typeof settings.httpToken === 'string' && settings.httpToken.trim() ? settings.httpToken.trim() : null,
+    keymap: {
+      VOLUME_UP: Number(keymap.VOLUME_UP ?? DEFAULT_KEYMAP.VOLUME_UP),
+      VOLUME_DOWN: Number(keymap.VOLUME_DOWN ?? DEFAULT_KEYMAP.VOLUME_DOWN),
+      NEXT: Number(keymap.NEXT ?? DEFAULT_KEYMAP.NEXT),
+      PREV: Number(keymap.PREV ?? DEFAULT_KEYMAP.PREV)
+    }
+  };
+}
+
+function mergeOptions(current, updates) {
+  const merged = {
+    ...current,
+    ...updates,
+    keymap: {
+      ...(current?.keymap ?? {}),
+      ...(updates?.keymap ?? {})
+    }
+  };
+  return buildOptions(merged);
+}
+
 function findQxs001DevicePath() {
   const byIdPath = '/dev/input/by-id';
   try {
@@ -46,6 +75,7 @@ module.exports = function (app) {
   let router;
   let server;
   let unsub = null;
+  let restartPlugin = null;
 
   // Runtime state
   const state = {
@@ -58,7 +88,8 @@ module.exports = function (app) {
     activeDashboardByDisplay: {}, // displayId -> number (from self.displays.<uuid>.activeScreen)
     lastUpdated: null,
     status: 'init',
-    errors: []
+    errors: [],
+    options: buildOptions()
   };
 
   function setStatus(msg) {
@@ -83,6 +114,42 @@ module.exports = function (app) {
       context: 'vessels.self',
       updates: [{ source: { label: PLUGIN_ID }, timestamp: new Date().toISOString(), values }]
     });
+  }
+
+  async function readPluginOptions() {
+    if (typeof app.readPluginOptions === 'function') {
+      try {
+        if (app.readPluginOptions.length >= 1) return await app.readPluginOptions(PLUGIN_ID);
+        return await app.readPluginOptions();
+      } catch {}
+    }
+    if (typeof app.getPluginOptions === 'function') {
+      try {
+        if (app.getPluginOptions.length >= 1) return await app.getPluginOptions(PLUGIN_ID);
+        return await app.getPluginOptions();
+      } catch {}
+    }
+    return state.options;
+  }
+
+  async function savePluginOptions(options) {
+    if (typeof app.savePluginOptions === 'function') {
+      if (app.savePluginOptions.length >= 2) {
+        await app.savePluginOptions(PLUGIN_ID, options);
+      } else {
+        await app.savePluginOptions(options);
+      }
+      return true;
+    }
+    if (typeof app.saveOptions === 'function') {
+      if (app.saveOptions.length >= 2) {
+        await app.saveOptions(PLUGIN_ID, options);
+      } else {
+        await app.saveOptions(options);
+      }
+      return true;
+    }
+    return false;
   }
 
   // ---- Display utilities ----
@@ -256,6 +323,50 @@ module.exports = function (app) {
       });
     });
 
+    r.get('/api/config', async (req, res) => {
+      const savedOptions = await readPluginOptions();
+      res.json({
+        options: mergeOptions(state.options, savedOptions || {}),
+        canSave: typeof app.savePluginOptions === 'function' || typeof app.saveOptions === 'function',
+        canRestart: typeof restartPlugin === 'function'
+      });
+    });
+
+    r.post('/api/config', express.json(), async (req, res) => {
+      const incoming = req.body?.options ?? req.body ?? {};
+      const merged = mergeOptions(state.options, incoming);
+      const saved = await savePluginOptions(merged);
+      state.options = merged;
+      if (merged.kipUuid) state.kipUuid = merged.kipUuid;
+
+      let restarting = false;
+      if (req.body?.restart && typeof restartPlugin === 'function') {
+        restarting = true;
+        restartPlugin();
+      }
+
+      res.json({ ok: saved, restarting, options: merged });
+    });
+
+    r.post('/api/autodetect', express.json(), async (req, res) => {
+      const seconds = clamp(Number(req.body?.seconds ?? state.options.autodetectSeconds ?? 6), 1, 60);
+      const minKeys = Math.max(1, Number(req.body?.minKeys ?? 1));
+      const preferById = req.body?.preferById ?? state.options.qxs001Autodetect;
+
+      try {
+        if (preferById) {
+          const byId = findQxs001DevicePath();
+          if (byId) return res.json({ path: byId, method: 'by-id' });
+        }
+        const reader = new EvdevKeyReader();
+        const detected = await reader.autodetectDevice({ seconds, minKeys });
+        if (!detected) return res.status(404).json({ path: null, method: 'sniff' });
+        return res.json({ path: detected, method: 'sniff' });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+      }
+    });
+
     // /plugins/qxs/display GET/PUT (requested "property")
     r.get('/display', (req, res) => {
       res.json({ value: state.activeDisplayId });
@@ -328,34 +439,24 @@ module.exports = function (app) {
           title: 'Signal K JWT token (optional)',
           description: 'If your server requires auth for local API calls.'
         },
-        keymap: {
-          type: 'object',
-          title: 'Key codes (optional)',
-          properties: {
-            VOLUME_UP: { type: 'number', default: DEFAULT_KEYMAP.VOLUME_UP },
+    keymap: {
+      type: 'object',
+      title: 'Key codes (optional)',
+      properties: {
+        VOLUME_UP: { type: 'number', default: DEFAULT_KEYMAP.VOLUME_UP },
             VOLUME_DOWN: { type: 'number', default: DEFAULT_KEYMAP.VOLUME_DOWN },
             NEXT: { type: 'number', default: DEFAULT_KEYMAP.NEXT },
             PREV: { type: 'number', default: DEFAULT_KEYMAP.PREV }
           }
         }
-      }
-    },
+    }
+  },
 
     start: async function (settings, restart) {
-      const options = {
-        devicePath: settings?.devicePath?.trim() || null,
-        autodetectSeconds: Number(settings?.autodetectSeconds ?? 6),
-        qxs001Autodetect: Boolean(settings?.qxs001Autodetect ?? true),
-        kipUuid: settings?.kipUuid?.trim() || null,
-        httpToken: settings?.httpToken?.trim() || null,
-        keymap: {
-          VOLUME_UP: Number(settings?.keymap?.VOLUME_UP ?? DEFAULT_KEYMAP.VOLUME_UP),
-          VOLUME_DOWN: Number(settings?.keymap?.VOLUME_DOWN ?? DEFAULT_KEYMAP.VOLUME_DOWN),
-          NEXT: Number(settings?.keymap?.NEXT ?? DEFAULT_KEYMAP.NEXT),
-          PREV: Number(settings?.keymap?.PREV ?? DEFAULT_KEYMAP.PREV)
-        }
-      };
+      const options = buildOptions(settings);
 
+      restartPlugin = restart;
+      state.options = options;
       state.kipUuid = options.kipUuid || null;
 
       try {
