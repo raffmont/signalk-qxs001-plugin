@@ -1,0 +1,24 @@
+{
+  "name": "signalk-qxs-plugin",
+  "version": "0.1.0",
+  "description": "Signal K plugin: use QXS remote keys to select KIP display and dashboards; provides a small web UI.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "lint": "node -c index.js",
+    "start:dev": "node index.js"
+  },
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk",
+    "kip",
+    "qxs",
+    "remote",
+    "evdev"
+  ],
+  "author": "Raffaele Montella",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
