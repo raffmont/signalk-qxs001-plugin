@@ -1,68 +1,40 @@
-# signalk-qxs-plugin
+# signalk-qxs001-plugin v0.6.1
 
-A Signal K server plugin for Raspberry Pi that listens to a Bluetooth‑paired **QXS** remote control (HID keyboard)
-and maps:
+This release fixes the startup crash:
 
-- **Volume Up / Volume Down** → select the active **KIP display**
-- **Next / Previous** → switch **dashboards** (screens) of the currently selected display
+- `SyntaxError: Invalid or unexpected token` at `plugin/index.js:1`
 
-It exposes:
-- A REST property-like endpoint **`/plugins/qxs/display`** (GET/PUT) to store the active display id
-- A tiny web UI (served by the plugin) to show available displays and current dashboard per display
-
-## Requirements
-
-- Signal K server (Node.js 20+ recommended)
-- KIP plugin installed and running (this plugin depends on it)
-- QXS remote paired and connected over Bluetooth
-- Permission to read `/dev/input/event*` (run Signal K as root, or give access via udev/group)
-
-## Install (typical)
-
-From Signal K server UI:
-1. Server → Appstore → search `signalk-qxs-plugin` (if published) or install from a folder
-2. Configure the plugin (optional): set the input device path or leave auto-detect
-
-Or from a local folder:
-```bash
-cd ~/.signalk/node_modules
-git clone https://github.com/raffmont/signalk-qxs-plugin.git
-cd signalk-qxs-plugin
-npm install --production
-sudo systemctl restart signalk
-```
-
-## Configuration
-
-- **devicePath** (optional): `/dev/input/eventX` to force the device
-- **autodetectSeconds**: sniff window used to pick the event device (default 6)
-- **kipUuid** (optional): if you know KIP UUID, set it; otherwise the plugin will infer it from KIP displays list
-- **httpToken** (optional): Signal K JWT token if your server requires auth for local API calls
-
-## How it works
-
-- Fetches available displays via `GET /plugins/kip/displays`
-- Keeps an internal model:
-  - displays list
-  - current selected display id (persisted via plugin endpoint `/plugins/qxs/display`)
-  - dashboards array for each display (read from `self.displays.<KIP_UUID>.screenIndex` when available)
-- To change dashboard, it writes to `self.displays.<KIP_UUID>.activeScreen` (KIP reacts)
+Cause: the previous build accidentally introduced a stray leading character at the beginning of JS files.
+This build rewrites all JS files as clean UTF-8 without BOM/stray bytes.
 
 ## Web UI
+The UI calls the correct base:
 
-Open:
-`http://<signalk-host>:3000/plugins/signalk-qxs-plugin/`
+- `/plugins/signalk-qxs001-plugin/api/keys`
+- `/plugins/signalk-qxs001-plugin/api/state`
 
-You will see:
-- available displays
-- current selected display
-- dashboards count and current active dashboard per display
+## KIP integration
+Uses:
+- `GET  /plugins/kip/displays`
+- `GET  /plugins/kip/displays/<displayId>`
+- `GET  /plugins/kip/displays/<displayId>/screenIndex`
+- `POST /plugins/kip/displays/<displayId>/activeScreen` body: `{"changeId": <idx>}`
 
-## Notes
+## Settings: Play bindings
+In plugin configuration: `playBindings[]`
 
-Key codes vary across remotes/OS. Defaults follow common Linux HID mappings:
-- VOL UP: 115, VOL DOWN: 114
-- NEXT: 163, PREV: 165
+Each item:
+1) `screenId` (KIP displayId)
+2) `dashboardId` (KIP dashboard id)
+3) action:
+   - REST: `actionType: "rest"`, plus `url`, `method`, `params`, `body`
+   - Signal K write: `actionType: "signalk"`, plus `key`, `value`
 
-You can override key codes in `index.js` constants if needed.
+## Non-root
+Make sure the Signal K user is in group `input`:
 
+```bash
+sudo usermod -aG input $USER
+# logout/login
+id
+```

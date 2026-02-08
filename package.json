@@ -1,29 +1,19 @@
 {
-  "name": "signalk-qxs-plugin",
-  "version": "0.1.0",
-  "description": "Signal K plugin: use QXS remote keys to select KIP display and dashboards; provides a small web UI.",
-  "main": "index.js",
-  "type": "commonjs",
-  "scripts": {
-    "lint": "node -c index.js",
-    "start:dev": "node index.js"
-  },
+  "name": "signalk-qxs001-plugin",
+  "version": "0.6.1",
+  "description": "Signal K webapp plugin that reads QXS-001 keys (non-root), integrates with KIP endpoints, and supports Play actions via settings.",
+  "main": "plugin/index.js",
   "keywords": [
     "signalk-node-server-plugin",
-    "signalk-webapp",
-    "signalk-category-utility",
-    "kip",
-    "qxs",
-    "remote",
-    "evdev"
+    "signalk-webapp"
   ],
-  "signalk": {
-    "appIcon": "./assets/icons/icon-72x72.png",
-    "displayName": "Freeboard-SK"
-  },
   "author": "Raffaele Montella",
-  "license": "Apache-2.0",
+  "license": "Apache 2.0",
   "dependencies": {
     "express": "^4.19.2"
+  },
+  "signalk": {
+    "appIcon": "assets/icons/icon-256x256.png",
+    "displayName": "QXS-001 BLE Keyboard"
   }
 }
