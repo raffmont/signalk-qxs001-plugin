@@ -15,10 +15,10 @@ The UI calls the correct base:
 
 ## KIP integration
 Uses:
-- `GET  /plugins/kip/displays`
-- `GET  /plugins/kip/displays/<displayId>`
-- `GET  /plugins/kip/displays/<displayId>/screenIndex`
-- `POST /plugins/kip/displays/<displayId>/activeScreen` body: `{"changeId": <idx>}`
+- GET /plugins/kip/displays - Returns an array of displays, each with a UUID in the id key.
+- GET /plugins/kip/displays/<uuid> - Returns the full definition of the display $uuid in terms of an array of dashboards. Each dashboard has a UUID in the id key, name, and icon.
+- GET /plugins/kip/displays/<uuid>/screenIndex - Return the current selected dashboard index. The index is consistent in terms of the array of dashboards returned by the /plugins/kip/displays/{$uuid} endpoint.
+- POST /plugins/kip/displays/<uuid>/activeScreen body: {"changeId": <uuid>} - Given the display identified by the <uuid>, set as active dashboard the one identified by the UUID given by the changeId parameter.
 
 ## Settings: Play bindings
 In plugin configuration: `playBindings[]`
