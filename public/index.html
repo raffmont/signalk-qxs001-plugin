@@ -1,90 +1,198 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>QXS ↔ KIP Displays</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>QXS-001 Key Monitor</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 16px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; min-width: 280px; }
-    .stack { display: grid; gap: 10px; }
-    .form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-    .form-field { display: flex; flex-direction: column; gap: 6px; }
-    .badge { padding: 2px 8px; border-radius: 999px; background: #eee; display: inline-block; }
-    button { padding: 6px 10px; border-radius: 10px; border: 1px solid #ccc; background: white; cursor: pointer; }
-    button.primary { border-color: #333; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    small { color: #666; }
-    code { background: #f5f5f5; padding: 2px 6px; border-radius: 6px; }
-    .err { color: #a00; }
-    .status { padding: 8px 10px; border-radius: 10px; background: #f7f7f7; }
-    .status.warn { background: #fff7e0; }
+    body{font-family:system-ui;margin:20px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px}
+    .grid{display:grid;grid-template-columns:440px 1fr;gap:16px}
+    .list{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow:auto}
+    .item{border:1px solid #eee;border-radius:10px;padding:10px;cursor:pointer}
+    .item.sel{border-color:#000}
+    .muted{color:#666;font-size:13px}
+    .key{font-size:24px;font-weight:800}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+    .kbd{display:grid;gap:10px;margin-top:12px}
+    .kbdRow{display:flex;justify-content:center;gap:10px}
+    .btnKey{min-width:120px;text-align:center;padding:10px;border-radius:12px;border:1px solid #ddd;font-weight:700}
+    .btnKey.active{border-color:#000;box-shadow:0 0 0 2px #000 inset}
   </style>
 </head>
 <body>
-  <h2>QXS Remote → KIP Displays</h2>
-  <div class="stack">
-    <div id="meta"></div>
-    <div class="card">
-      <h3>Plugin Configuration</h3>
-      <form id="config-form" class="stack">
-        <div class="form-grid">
-          <label class="form-field">
-            <span>Input device path</span>
-            <input id="config-device-path" type="text" placeholder="/dev/input/event5" />
-            <small>Leave blank to autodetect at startup.</small>
-          </label>
-          <label class="form-field">
-            <span>Autodetect window (seconds)</span>
-            <input id="config-autodetect-seconds" type="number" min="1" max="60" />
-          </label>
-          <label class="form-field">
-            <span>QXS 001 by-id autodetect</span>
-            <input id="config-qxs001" type="checkbox" />
-            <small>Prefer /dev/input/by-id matches before sniffing.</small>
-          </label>
-          <label class="form-field">
-            <span>KIP UUID (optional)</span>
-            <input id="config-kip-uuid" type="text" placeholder="auto" />
-          </label>
-          <label class="form-field">
-            <span>HTTP token (optional)</span>
-            <input id="config-http-token" type="password" />
-          </label>
-        </div>
-        <div class="form-grid">
-          <label class="form-field">
-            <span>Keycode: Volume Up</span>
-            <input id="config-keymap-volume-up" type="number" />
-          </label>
-          <label class="form-field">
-            <span>Keycode: Volume Down</span>
-            <input id="config-keymap-volume-down" type="number" />
-          </label>
-          <label class="form-field">
-            <span>Keycode: Next</span>
-            <input id="config-keymap-next" type="number" />
-          </label>
-          <label class="form-field">
-            <span>Keycode: Prev</span>
-            <input id="config-keymap-prev" type="number" />
-          </label>
-        </div>
-        <div class="row">
-          <button id="config-autodetect" type="button" class="primary">Run autodetect</button>
-          <button id="config-save" type="submit">Save settings</button>
-          <label class="form-field" style="min-width: 160px;">
-            <span>Restart after save</span>
-            <input id="config-restart" type="checkbox" checked />
-          </label>
-        </div>
-        <div id="config-status" class="status"></div>
-      </form>
-    </div>
-    <div class="row" id="cards"></div>
+<div class="grid">
+  <div class="card">
+    <div class="muted">API base (forced)</div><div><code id="apiBase"></code></div>
+
+    <div class="muted" style="margin-top:10px">Last key</div>
+    <div class="key" id="lastKey">—</div>
+    <div class="muted">At: <span id="lastKeyAt">—</span> · Code: <span id="lastKeyCode">—</span></div>
+
+    <div class="muted" style="margin-top:12px">QXS keys</div>
+    <div class="kbd" id="kbd"></div>
+
+    <div class="muted" style="margin-top:12px">Displays</div>
+    <div class="list" id="displayList"></div>
+
+    <button id="triggerPlay" style="margin-top:10px">Trigger Play (test)</button>
+    <div class="muted" id="triggerResult"></div>
   </div>
 
-  <script src="./app.js"></script>
+  <div class="card">
+    <div class="muted">Dashboards for: <b id="activeDisplayName">—</b> · <span id="activeScreenTag">screenIndex: —</span></div>
+    <div id="dashTable"></div>
+  </div>
+</div>
+
+<script>
+  const BASE = "/plugins/signalk-qxs001-plugin/";
+  document.getElementById("apiBase").textContent = BASE;
+
+  const elLastKey = document.getElementById("lastKey");
+  const elLastKeyAt = document.getElementById("lastKeyAt");
+  const elLastKeyCode = document.getElementById("lastKeyCode");
+  const elDisplayList = document.getElementById("displayList");
+  const elKbd = document.getElementById("kbd");
+  const elTriggerResult = document.getElementById("triggerResult");
+  const elActiveDisplayName = document.getElementById("activeDisplayName");
+  const elActiveScreenTag = document.getElementById("activeScreenTag");
+  const elDashTable = document.getElementById("dashTable");
+
+  let state = null;
+  let keys = null;
+  let activeDisplayId = null;
+
+  function apiUrl(p) {
+    return BASE + p.replace(/^\//, "");
+  }
+
+  async function getJson(p) {
+    const res = await fetch(apiUrl(p), { cache: "no-store" });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function postJson(p, body) {
+    const res = await fetch(apiUrl(p), {
+      method: "POST",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  function renderKeypad() {
+    elKbd.innerHTML = "";
+    if (!keys) return;
+
+    const layout = keys.layout || [];
+    const last = keys.last?.lastKey || null;
+
+    layout.forEach((row) => {
+      const rowEl = document.createElement("div");
+      rowEl.className = "kbdRow";
+      row.forEach((k) => {
+        const b = document.createElement("div");
+        b.className = "btnKey" + (k === last ? " active" : "");
+        b.textContent = k;
+        rowEl.appendChild(b);
+      });
+      elKbd.appendChild(rowEl);
+    });
+  }
+
+  function renderDisplays() {
+    elDisplayList.innerHTML = "";
+    const displays = state?.displays || [];
+    const selected = state?.selected?.selectedDisplayId || null;
+
+    displays.forEach((d) => {
+      const div = document.createElement("div");
+      div.className = "item" + (d.displayId === selected ? " sel" : "");
+      div.textContent = (d.displayName || d.displayId) + " (screenIndex " + (d.screenIndex ?? 0) + ")";
+      div.onclick = () => {
+        activeDisplayId = d.displayId;
+        refresh();
+      };
+      elDisplayList.appendChild(div);
+    });
+
+    if (!activeDisplayId) activeDisplayId = selected || (displays[0] && displays[0].displayId) || null;
+  }
+
+  function renderDashboards() {
+    elDashTable.innerHTML = "";
+    const displays = state?.displays || [];
+    const selected = state?.selected?.selectedDisplayId || null;
+
+    const cur =
+      displays.find((d) => d.displayId === (activeDisplayId || selected)) ||
+      displays.find((d) => d.displayId === selected) ||
+      displays[0];
+
+    if (!cur) return;
+
+    elActiveDisplayName.textContent = cur.displayName || cur.displayId;
+    elActiveScreenTag.textContent = "screenIndex: " + (cur.screenIndex ?? 0);
+
+    const dashboards = cur.dashboards || [];
+    const shown = Number(cur.screenIndex ?? 0);
+    const bindings = cur.bindings || {};
+
+    dashboards.forEach((dash, i) => {
+      const div = document.createElement("div");
+      const name = dash.name || dash.id || ("Dashboard " + (i + 1));
+      const action = bindings[dash.id] || { type: "none" };
+
+      div.innerHTML =
+        "<div><b>" + name + "</b> " + (i === shown ? "(shown)" : "") + "</div>" +
+        "<div class='muted'>id: " + dash.id + "</div>" +
+        "<div class='muted'>play: <code>" + JSON.stringify(action) + "</code></div>";
+
+      const btn = document.createElement("button");
+      btn.textContent = "Show";
+      btn.onclick = async () => {
+        await postJson("api/kip/activeScreen", { displayId: cur.displayId, changeId: i });
+        await refresh();
+      };
+
+      div.appendChild(btn);
+      div.style.marginTop = "10px";
+      elDashTable.appendChild(div);
+    });
+  }
+
+  async function refresh() {
+    const [s, k] = await Promise.all([getJson("api/state"), getJson("api/keys")]);
+
+    if (!s.ok || !k.ok) {
+      elLastKey.textContent = "Error";
+      elLastKeyAt.textContent = "Cannot reach plugin API (state=" + s.status + ", keys=" + k.status + ")";
+      return;
+    }
+
+    state = s.data;
+    keys = k.data;
+
+    elLastKey.textContent = state.lastKey || "—";
+    elLastKeyAt.textContent = state.lastKeyAt || "—";
+    elLastKeyCode.textContent = (state.lastKeyCode ?? "—");
+
+    renderKeypad();
+    renderDisplays();
+    renderDashboards();
+  }
+
+  document.getElementById("triggerPlay").onclick = async () => {
+    elTriggerResult.textContent = "Triggering...";
+    const r = await postJson("api/triggerPlay");
+    elTriggerResult.textContent = r.ok ? ("OK: " + JSON.stringify(r.data.action)) : ("ERR: " + JSON.stringify(r.data));
+  };
+
+  refresh();
+  setInterval(refresh, 1200);
+</script>
 </body>
 </html>
