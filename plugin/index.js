@@ -87,6 +87,28 @@ module.exports = function (app) {
     return res.bodyJson;
   }
 
+  function normalizeDisplayList(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (payload && Array.isArray(payload.displays)) return payload.displays;
+    if (payload && Array.isArray(payload.items)) return payload.items;
+    return [];
+  }
+
+  function normalizeDashboards(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (payload && Array.isArray(payload.dashboards)) return payload.dashboards;
+    if (payload && Array.isArray(payload.items)) return payload.items;
+    return [];
+  }
+
+  function normalizeScreenIndex(payload) {
+    if (Number.isFinite(payload)) return Number(payload);
+    if (payload && Number.isFinite(payload.screenIndex)) return Number(payload.screenIndex);
+    if (payload && Number.isFinite(payload.index)) return Number(payload.index);
+    if (payload && Number.isFinite(payload.activeScreen)) return Number(payload.activeScreen);
+    return null;
+  }
+
   async function kipPost(p, json) {
     const port = getServerPort();
     const res = await requestLocal({ port, method: "POST", path: p, json });
@@ -96,7 +118,7 @@ module.exports = function (app) {
 
   async function refreshKipDisplaysAndDashboards() {
     const displays = await kipGet("/plugins/kip/displays");
-    kipDisplays = Array.isArray(displays) ? displays : [];
+    kipDisplays = normalizeDisplayList(displays);
 
     if (kipDisplays.length && !selectedDisplayId) selectedDisplayId = kipDisplays[0].displayId;
     if (kipDisplays.length && selectedDisplayId && !kipDisplays.some((d) => d.displayId === selectedDisplayId)) {
@@ -107,7 +129,7 @@ module.exports = function (app) {
     for (const d of kipDisplays) {
       try {
         const dashboards = await kipGet(`/plugins/kip/displays/${encodeURIComponent(d.displayId)}`);
-        newDash[d.displayId] = Array.isArray(dashboards) ? dashboards : [];
+        newDash[d.displayId] = normalizeDashboards(dashboards);
       } catch (_) {
         newDash[d.displayId] = [];
       }
@@ -119,7 +141,8 @@ module.exports = function (app) {
     for (const d of kipDisplays) {
       try {
         const idx = await kipGet(`/plugins/kip/displays/${encodeURIComponent(d.displayId)}/screenIndex`);
-        kipScreenIndexByDisplay[d.displayId] = Number(idx) || 0;
+        const normalized = normalizeScreenIndex(idx);
+        kipScreenIndexByDisplay[d.displayId] = Number.isFinite(normalized) ? normalized : 0;
       } catch (_) {
         if (kipScreenIndexByDisplay[d.displayId] == null) kipScreenIndexByDisplay[d.displayId] = 0;
       }
