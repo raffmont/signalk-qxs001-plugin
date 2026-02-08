@@ -8,10 +8,13 @@ Cause: the previous build accidentally introduced a stray leading character at t
 This build rewrites all JS files as clean UTF-8 without BOM/stray bytes.
 
 ## Web UI
-The UI calls the correct base:
+The UI pulls key data from the plugin API and display data from the KIP API:
 
 - `/plugins/signalk-qxs001-plugin/api/keys`
-- `/plugins/signalk-qxs001-plugin/api/state`
+- `/plugins/kip/displays`
+- `/plugins/kip/displays/<uuid>`
+- `/plugins/kip/displays/<uuid>/screenIndex`
+- `/plugins/kip/displays/<uuid>/activeScreen`
 
 ## KIP integration
 Uses:
